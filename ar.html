@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+    <title>Яндекс Курьер: Доставка в AR</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
+    <script src="https://unpkg.com/aframe-extras@6.1.0/dist/aframe-extras.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 999;
+        }
+        .panel {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 16px;
+            padding: 12px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin: 10px;
+            pointer-events: auto;
+        }
+        .top-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 300px;
+        }
+        .bottom-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 500px;
+            text-align: center;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #f3f3f3;
+            border-radius: 10px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #FFDB4D;
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 10px;
+        }
+        .button {
+            background-color: #FFDB4D;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s;
+        }
+        .button:hover {
+            background-color: #ffcc00;
+            transform: translateY(-2px);
+        }
+        .package-icon {
+            width: 40px;
+            height: 40px;
+            background-color: #FFDB4D;
+            border-radius: 8px;
+            display: inline-block;
+            margin: 5px;
+            position: relative;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .package-icon::after {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            width: 10px;
+            height: 10px;
+            background-color: #fff;
+            border-radius: 50%;
+        }
+        .notification {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 80%;
+            display: none;
+            z-index: 1000;
+        }
+        h2 {
+            color: #FFDB4D;
+            margin-top: 0;
+        }
+        .xp {
+            font-weight: bold;
+            color: #FFDB4D;
+        }
+        .level {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+        .stat {
+            text-align: center;
+            flex: 1;
+        }
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        .ar-button {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 10px 20px;
+            border-radius: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            pointer-events: auto;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <a-scene vr-mode-ui="enabled: false" loading-screen="enabled: false" arjs="sourceType: webcam; debugUIEnabled: false;">
+        <!-- Камера с поддержкой AR -->
+        <a-entity camera look-controls position="0 1.6 0">
+            <a-entity cursor="fuse: true; fuseTimeout: 500" position="0 0 -1" geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03" material="color: #FFDB4D; shader: flat">
+            </a-entity>
+        </a-entity>
+        
+        <!-- Окружающая среда -->
+        <a-entity environment="preset: forest; dressingAmount: 100"></a-entity>
+        
+        <!-- Маркеры для AR (виртуальные) -->
+        <a-entity id="markers"></a-entity>
+        
+        <!-- UI элементы -->
+        <div id="ui">
+            <div class="panel top-panel">
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-value" id="level">1</div>
+                        <div class="stat-label">Уровень</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="xp">0/100</div>
+                        <div class="stat-label">Опыт</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="packages">0</div>
+                        <div class="stat-label">Посылки</div>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="xp-bar"></div>
+                </div>
+            </div>
+            
+            <div class="panel bottom-panel">
+                <div id="quest-text">Найдите посылки вокруг вас!</div>
+                <button class="button" id="scan-button">Сканировать</button>
+                <div id="package-container"></div>
+            </div>
+            
+            <div class="notification" id="notification">
+                <h2 id="notification-title">Новая посылка!</h2>
+                <p id="notification-text">Вы нашли посылку с заказом #12345</p>
+                <p>+<span id="xp-gained">10</span> <span class="xp">опыта</span></p>
+                <button class="button" id="close-notification">Отлично!</button>
+            </div>
+            
+            <a class="ar-button" id="ar-button">Включить AR</a>
+        </div>
+    </a-scene>
+
+    <script>
+        // Игровые переменные
+        const gameState = {
+            level: 1,
+            xp: 0,
+            xpToNextLevel: 100,
+            packagesCollected: 0,
+            packagesFound: 0,
+            currentQuest: null,
+            isARMode: false,
+            markers: []
+        };
+        
+        // Типы посылок
+        const packageTypes = [
+            { name: "Мелкий пакет", xp: 10, color: "#FFDB4D", model: "box" },
+            { name: "Средняя коробка", xp: 20, color: "#FF9900", model: "box" },
+            { name: "Крупный заказ", xp: 30, color: "#FF6600", model: "box" },
+            { name: "Хрупкий груз", xp: 40, color: "#FF3366", model: "box" },
+            { name: "VIP доставка", xp: 50, color: "#9900FF", model: "box" }
+        ];
+        
+        // Квесты
+        const quests = [
+            { id: 1, title: "Новичок в доставке", description: "Соберите 3 посылки", target: 3, reward: 50 },
+            { id: 2, title: "Опытный курьер", description: "Соберите 10 посылок", target: 10, reward: 150 },
+            { id: 3, title: "Мастер доставки", description: "Соберите 5 крупных заказов", target: 5, reward: 300, type: "Крупный заказ" }
+        ];
+        
+        // Инициализация игры
+        function initGame() {
+            updateUI();
+            generateNewQuest();
+            
+            // Начальные посылки
+            setTimeout(() => {
+                spawnPackage();
+                spawnPackage();
+            }, 2000);
+        }
+        
+        // Обновление UI
+        function updateUI() {
+            document.getElementById('level').textContent = gameState.level;
+            document.getElementById('xp').textContent = `${gameState.xp}/${gameState.xpToNextLevel}`;
+            document.getElementById('packages').textContent = gameState.packagesCollected;
+            document.getElementById('xp-bar').style.width = `${(gameState.xp / gameState.xpToNextLevel) * 100}%`;
+            
+            // Обновление квеста
+            if (gameState.currentQuest) {
+                const progress = gameState.currentQuest.type 
+                    ? gameState.packagesFound 
+                    : gameState.packagesCollected;
+                
+                document.getElementById('quest-text').textContent = 
+                    `${gameState.currentQuest.title}: ${progress}/${gameState.currentQuest.target}`;
+            }
+            
+            // Обновление иконок посылок
+            const packageContainer = document.getElementById('package-container');
+            packageContainer.innerHTML = '';
+            
+            for (let i = 0; i < gameState.packagesCollected; i++) {
+                const packageIcon = document.createElement('div');
+                packageIcon.className = 'package-icon';
+                packageContainer.appendChild(packageIcon);
+            }
+        }
+        
+        // Создание нового квеста
+        function generateNewQuest() {
+            // Если текущий квест не завершен, оставляем его
+            if (gameState.currentQuest) {
+                const progress = gameState.currentQuest.type 
+                    ? gameState.packagesFound 
+                    : gameState.packagesCollected;
+                
+                if (progress < gameState.currentQuest.target) {
+                    return;
+                }
+                
+                // Награда за выполнение квеста
+                addXP(gameState.currentQuest.reward);
+                showNotification("Квест выполнен!", `Вы получили ${gameState.currentQuest.reward} опыта!`);
+            }
+            
+            // Выбираем случайный квест
+            gameState.currentQuest = quests[Math.floor(Math.random() * quests.length)];
+            updateUI();
+        }
+        
+        // Добавление опыта
+        function addXP(amount) {
+            gameState.xp += amount;
+            
+            // Проверка уровня
+            if (gameState.xp >= gameState.xpToNextLevel) {
+                gameState.level++;
+                gameState.xp -= gameState.xpToNextLevel;
+                gameState.xpToNextLevel = Math.floor(gameState.xpToNextLevel * 1.2);
+                
+                showNotification("Новый уровень!", `Теперь вы уровень ${gameState.level}!`);
+            }
+            
+            updateUI();
+        }
+        
+        // Создание посылки
+        function spawnPackage() {
+            if (gameState.markers.length >= 5) return; // Ограничение на количество посылок
+            
+            const packageType = packageTypes[Math.floor(Math.random() * packageTypes.length)];
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 3 + Math.random() * 7;
+            const x = Math.cos(angle) * distance;
+            const z = Math.sin(angle) * distance;
+            
+            const markerId = `package-${Date.now()}`;
+            const marker = document.createElement('a-entity');
+            marker.setAttribute('id', markerId);
+            marker.setAttribute('geometry', `primitive: ${packageType.model}`);
+            marker.setAttribute('material', `color: ${packageType.color}`);
+            marker.setAttribute('position', `${x} 0 ${z}`);
+            marker.setAttribute('scale', '0.5 0.5 0.5');
+            marker.setAttribute('look-at', '[camera]');
+            marker.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 5000');
+            marker.setAttribute('class', 'clickable');
+            marker.setAttribute('data-xp', packageType.xp);
+            marker.setAttribute('data-name', packageType.name);
+            
+            // Добавляем эффект свечения
+            const glow = document.createElement('a-entity');
+            glow.setAttribute('geometry', 'primitive: ring; radiusInner: 0.6; radiusOuter: 0.8');
+            glow.setAttribute('material', `color: ${packageType.color}; shader: flat; opacity: 0.5`);
+            glow.setAttribute('position', '0 0 0');
+            glow.setAttribute('animation', 'property: scale; from: 1 1 1; to: 1.5 1.5 1.5; loop: true; dur: 2000; dir: alternate');
+            
+            marker.appendChild(glow);
+            document.getElementById('markers').appendChild(marker);
+            
+            gameState.markers.push(markerId);
+            
+            // Обработчик клика
+            marker.addEventListener('click', function() {
+                collectPackage(markerId, packageType);
+            });
+        }
+        
+        // Сбор посылки
+        function collectPackage(markerId, packageType) {
+            // Удаляем маркер
+            const marker = document.getElementById(markerId);
+            if (marker) marker.parentNode.removeChild(marker);
+            
+            // Удаляем из массива
+            gameState.markers = gameState.markers.filter(id => id !== markerId);
+            
+            // Обновляем статистику
+            gameState.packagesCollected++;
+            if (packageType.name === (gameState.currentQuest?.type || '')) {
+                gameState.packagesFound++;
+            }
+            
+            // Добавляем опыт
+            addXP(packageType.xp);
+            
+            // Показываем уведомление
+            showNotification("Посылка найдена!", `Вы нашли ${packageType.name} (+${packageType.xp} опыта)`);
+            
+            // Спавним новую посылку через некоторое время
+            setTimeout(spawnPackage, 3000 + Math.random() * 5000);
+            
+            // Проверяем квест
+            generateNewQuest();
+        }
+        
+        // Показать уведомление
+        function showNotification(title, text) {
+            const notification = document.getElementById('notification');
+            document.getElementById('notification-title').textContent = title;
+            document.getElementById('notification-text').textContent = text;
+            document.getElementById('xp-gained').textContent = text.match(/\+(\d+)/)?.[1] || '0';
+            notification.style.display = 'block';
+        }
+        
+        // Сканирование области
+        function scanArea() {
+            const scanButton = document.getElementById('scan-button');
+            scanButton.disabled = true;
+            scanButton.textContent = 'Сканирование...';
+            
+            // Анимация сканирования
+            const scanner = document.createElement('a-entity');
+            scanner.setAttribute('geometry', 'primitive: ring; radiusInner: 0.1; radiusOuter: 10');
+            scanner.setAttribute('material', 'color: #FFDB4D; shader: flat; opacity: 0.5');
+            scanner.setAttribute('position', '0 0.1 0');
+            scanner.setAttribute('animation', 'property: scale; from: 0.1 0.1 0.1; to: 20 20 20; dur: 1000; easing: easeOutQuad');
+            
+            document.querySelector('a-scene').appendChild(scanner);
+            
+            setTimeout(() => {
+                scanner.parentNode.removeChild(scanner);
+                scanButton.disabled = false;
+                scanButton.textContent = 'Сканировать';
+                
+                // Спавним 1-3 новых посылки
+                const newPackages = 1 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < newPackages; i++) {
+                    setTimeout(spawnPackage, i * 500);
+                }
+            }, 1000);
+        }
+        
+        // Переключение AR режима
+        function toggleARMode() {
+            const arButton = document.getElementById('ar-button');
+            
+            if (gameState.isARMode) {
+                // Отключаем AR
+                document.querySelector('a-scene').setAttribute('vr-mode-ui', 'enabled: false');
+                document.querySelector('a-scene').setAttribute('arjs', 'sourceType: webcam; debugUIEnabled: false');
+                arButton.textContent = 'Включить AR';
+                gameState.isARMode = false;
+            } else {
+                // Включаем AR
+                document.querySelector('a-scene').setAttribute('vr-mode-ui', 'enabled: true');
+                document.querySelector('a-scene').setAttribute('arjs', 'sourceType: webcam; debugUIEnabled: false');
+                arButton.textContent = 'Отключить AR';
+                gameState.isARMode = true;
+            }
+        }
+        
+        // Инициализация при загрузке
+        window.addEventListener('DOMContentLoaded', () => {
+            initGame();
+            
+            // Обработчики кнопок
+            document.getElementById('scan-button').addEventListener('click', scanArea);
+            document.getElementById('close-notification').addEventListener('click', () => {
+                document.getElementById('notification').style.display = 'none';
+            });
+            document.getElementById('ar-button').addEventListener('click', toggleARMode);
+        });
+    </script>
+</body>
+</html>
